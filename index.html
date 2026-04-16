@@ -3,67 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wind Polar Viewer</title>
+<title>WindView Clone</title>
 
 <style>
 body {
   margin: 0;
-  font-family: Arial;
-  background: #111;
+  background: #000;
   color: white;
+  font-family: Arial;
 }
 
 header {
   text-align: center;
-  padding: 10px;
-  background: #222;
-  font-size: 18px;
+  padding: 8px;
+  background: #111;
+  font-size: 16px;
 }
 
 textarea {
   width: 100%;
-  height: 120px;
-  font-size: 16px;
+  height: 100px;
+  background: #111;
+  color: white;
+  border: none;
+  font-size: 14px;
 }
 
 button {
   width: 100%;
-  padding: 14px;
-  font-size: 18px;
-  margin-top: 5px;
+  padding: 12px;
+  background: #222;
+  color: white;
+  border: none;
+  font-size: 16px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  background: #111;
+  color: white;
+  border: none;
+  font-size: 16px;
 }
 
 #history {
   display: flex;
   overflow-x: auto;
-  border-bottom: 1px solid #333;
+  background: #111;
 }
 
 .history-item {
-  padding: 10px;
+  padding: 8px;
   border-right: 1px solid #333;
   cursor: pointer;
-  white-space: nowrap;
 }
 
 .active {
-  background: #444;
+  background: #333;
 }
 
 canvas {
   width: 100%;
   aspect-ratio: 1 / 1;
-  background: black;
+  background: #000;
 }
 </style>
 </head>
 
 <body>
 
-<header>Wind Polar Viewer</header>
+<header>WindView Clone</header>
 
-<textarea id="input" placeholder="そのまま貼り付け"></textarea>
+<textarea id="input" placeholder="貼り付け"></textarea>
 <button onclick="addData()">追加</button>
+
+<input id="currentAlt" placeholder="現在高度 (m)" oninput="draw()">
 
 <div id="history"></div>
 
@@ -76,30 +91,16 @@ let currentIndex = 0;
 
 function parse(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(l => l);
-
   let result = [];
 
   for (let i = 0; i < lines.length; i++) {
-
     if (lines[i].includes("m")) {
 
-      let altLine = lines[i];
+      let alt = parseFloat(lines[i].replace(/[^0-9]/g, ""));
       let dir = parseFloat(lines[i+1]);
       let speed = parseFloat(lines[i+2]);
 
-      let min, max;
-
-      if (altLine.includes("-")) {
-        let parts = altLine.replace("m","").split("-");
-        min = parseFloat(parts[0]);
-        max = parseFloat(parts[1]);
-      } else {
-        let val = parseFloat(altLine.replace("m","").replace("-",""));
-        min = val - 100;
-        max = val;
-      }
-
-      let alt = (min + max) / 2;
+      if (isNaN(alt) || isNaN(dir) || isNaN(speed)) continue;
 
       result.push({
         alt,
@@ -110,18 +111,20 @@ function parse(text) {
     }
   }
 
-  return result;
+  return result.sort((a,b)=>a.alt-b.alt);
 }
 
 function addData() {
   const text = document.getElementById("input").value;
   if (!text) return;
 
-  const time = new Date().toLocaleTimeString();
-
   const layers = parse(text);
 
-  history.push({ time, layers });
+  history.push({
+    time: new Date().toLocaleTimeString(),
+    layers
+  });
+
   currentIndex = history.length - 1;
 
   renderHistory();
@@ -134,15 +137,23 @@ function renderHistory() {
 
   history.forEach((h, i) => {
     const div = document.createElement("div");
-    div.className = "history-item " + (i === currentIndex ? "active" : "");
+    div.className = "history-item " + (i===currentIndex?"active":"");
     div.innerText = h.time;
-    div.onclick = () => {
+    div.onclick = ()=>{
       currentIndex = i;
-      draw();
       renderHistory();
+      draw();
     };
     el.appendChild(div);
   });
+}
+
+function getColor(speed) {
+  if (speed < 5) return "#00aaff";
+  if (speed < 10) return "#00ff88";
+  if (speed < 15) return "#ffee00";
+  if (speed < 20) return "#ff8800";
+  return "#ff0000";
 }
 
 function draw() {
@@ -152,79 +163,94 @@ function draw() {
   canvas.width = canvas.clientWidth;
   canvas.height = canvas.clientWidth;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
+  const cx = canvas.width/2;
+  const cy = canvas.height/2;
 
-  // 円ガイド
-  for (let r = 40; r <= 160; r += 40) {
+  // 円グリッド
+  for(let r=40;r<=200;r+=40){
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = "#333";
+    ctx.arc(cx,cy,r,0,Math.PI2);
+    ctx.strokeStyle="#222";
     ctx.stroke();
   }
 
-  // 十字線
-  ctx.beginPath();
-  ctx.moveTo(cx, 0);
-  ctx.lineTo(cx, canvas.height);
-  ctx.moveTo(0, cy);
-  ctx.lineTo(canvas.width, cy);
-  ctx.strokeStyle = "#555";
-  ctx.stroke();
+  // 方位
+  ctx.fillStyle="#888";
+  ctx.fillText("N", cx-5, 10);
+  ctx.fillText("E", canvas.width-15, cy);
+  ctx.fillText("S", cx-5, canvas.height-5);
+  ctx.fillText("W", 5, cy);
 
   const current = history[currentIndex];
-  const prev = history[currentIndex - 1];
+  const prev = history[currentIndex-1];
 
-  if (prev) {
-    drawPolar(ctx, prev.layers, cx, cy, "gray");
+  if(prev){
+    drawPolar(ctx, prev.layers, cx, cy, true);
   }
 
-  if (current) {
-    drawPolar(ctx, current.layers, cx, cy, "white");
+  if(current){
+    drawPolar(ctx, current.layers, cx, cy, false);
   }
 }
 
-function drawPolar(ctx, layers, cx, cy, color) {
+function drawPolar(ctx, layers, cx, cy, isPrev){
 
   const scale = 6;
+  const currentAlt = parseFloat(document.getElementById("currentAlt").value);
 
-  ctx.beginPath();
+  for(let i=0;i<layers.length;i++){
 
-  layers.forEach((d, i) => {
+    const d = layers[i];
 
-    const angle = d.heading * Math.PI / 180;
-    const r = d.speed * scale;
+    const angle = d.headingMath.PI/180;
+    const r = d.speed*scale;
 
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
+    const x = cx + Math.cos(angle)r;
+    const y = cy + Math.sin(angle)r;
 
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
+    let color = getColor(d.speed);
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
+    if(isPrev){
+      color = "rgba(150,150,150,0.4)";
+    }
 
-  // 点＋ラベル
-  layers.forEach((d) => {
-    const angle = d.heading * Math.PI / 180;
-    const r = d.speed * scale;
+    // 線
+    if(i>0){
+      const prev = layers[i-1];
+      const a2 = prev.headingMath.PI/180;
+      const r2 = prev.speedscale;
 
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
+      const x2 = cx + Math.cos(a2)*r2;
+      const y2 = cy + Math.sin(a2)r2;
+
+      ctx.beginPath();
+      ctx.moveTo(x2,y2);
+      ctx.lineTo(x,y);
+      ctx.strokeStyle=color;
+      ctx.lineWidth=2;
+      ctx.stroke();
+    }
+
+    // 現在高度強調
+    let size = 3;
+
+    if(!isPrev && !isNaN(currentAlt)){
+      if(Math.abs(d.alt - currentAlt) < 100){
+        size = 6;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+      }
+    }
 
     ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = color;
+    ctx.arc(x,y,size,0,Math.PI2);
+    ctx.fillStyle=color;
     ctx.fill();
 
-    ctx.fillStyle = "#aaa";
-    ctx.font = "10px Arial";
-    ctx.fillText(d.alt + "m", x + 4, y);
-  });
+    ctx.shadowBlur = 0;
+  }
 }
 
 </script>
