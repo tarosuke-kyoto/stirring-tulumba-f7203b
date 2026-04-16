@@ -38,15 +38,6 @@ button {
   font-size: 16px;
 }
 
-input {
-  width: 100%;
-  padding: 10px;
-  background: #111;
-  color: white;
-  border: none;
-  font-size: 16px;
-}
-
 #history {
   display: flex;
   overflow-x: auto;
@@ -57,6 +48,7 @@ input {
   padding: 8px;
   border-right: 1px solid #333;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .active {
@@ -75,10 +67,8 @@ canvas {
 
 <header>WindView Clone</header>
 
-<textarea id="input" placeholder="貼り付け"></textarea>
+<textarea id="input" placeholder="データ貼り付け"></textarea>
 <button onclick="addData()">追加</button>
-
-<input id="currentAlt" placeholder="現在高度 (m)" oninput="draw()">
 
 <div id="history"></div>
 
@@ -89,14 +79,18 @@ canvas {
 let history = [];
 let currentIndex = 0;
 
+// ===== データ解析（NaN対策済み） =====
 function parse(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(l => l);
   let result = [];
 
   for (let i = 0; i < lines.length; i++) {
+
     if (lines[i].includes("m")) {
 
+      // 高度（数字だけ抽出）
       let alt = parseFloat(lines[i].replace(/[^0-9]/g, ""));
+
       let dir = parseFloat(lines[i+1]);
       let speed = parseFloat(lines[i+2]);
 
@@ -114,6 +108,7 @@ function parse(text) {
   return result.sort((a,b)=>a.alt-b.alt);
 }
 
+// ===== データ追加 =====
 function addData() {
   const text = document.getElementById("input").value;
   if (!text) return;
@@ -131,6 +126,7 @@ function addData() {
   draw();
 }
 
+// ===== 履歴UI =====
 function renderHistory() {
   const el = document.getElementById("history");
   el.innerHTML = "";
@@ -148,6 +144,7 @@ function renderHistory() {
   });
 }
 
+// ===== 風速カラー =====
 function getColor(speed) {
   if (speed < 5) return "#00aaff";
   if (speed < 10) return "#00ff88";
@@ -156,6 +153,7 @@ function getColor(speed) {
   return "#ff0000";
 }
 
+// ===== 描画 =====
 function draw() {
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
@@ -168,16 +166,16 @@ function draw() {
   const cx = canvas.width/2;
   const cy = canvas.height/2;
 
-  // 円グリッド
+  // グリッド
   for(let r=40;r<=200;r+=40){
     ctx.beginPath();
     ctx.arc(cx,cy,r,0,Math.PI2);
-    ctx.strokeStyle="#222";
+    ctx.strokeStyle="#333";
     ctx.stroke();
   }
 
   // 方位
-  ctx.fillStyle="#888";
+  ctx.fillStyle="#777";
   ctx.fillText("N", cx-5, 10);
   ctx.fillText("E", canvas.width-15, cy);
   ctx.fillText("S", cx-5, canvas.height-5);
@@ -195,10 +193,10 @@ function draw() {
   }
 }
 
+// ===== 極座標描画 =====
 function drawPolar(ctx, layers, cx, cy, isPrev){
 
   const scale = 6;
-  const currentAlt = parseFloat(document.getElementById("currentAlt").value);
 
   for(let i=0;i<layers.length;i++){
 
@@ -213,10 +211,10 @@ function drawPolar(ctx, layers, cx, cy, isPrev){
     let color = getColor(d.speed);
 
     if(isPrev){
-      color = "rgba(150,150,150,0.4)";
+      color = "rgba(150,150,150,0.2)";
     }
 
-    // 線
+    // 線（主役）
     if(i>0){
       const prev = layers[i-1];
       const a2 = prev.headingMath.PI/180;
@@ -229,27 +227,17 @@ function drawPolar(ctx, layers, cx, cy, isPrev){
       ctx.moveTo(x2,y2);
       ctx.lineTo(x,y);
       ctx.strokeStyle=color;
-      ctx.lineWidth=2;
+      ctx.lineWidth=3;
       ctx.stroke();
     }
 
-    // 現在高度強調
-    let size = 3;
-
-    if(!isPrev && !isNaN(currentAlt)){
-      if(Math.abs(d.alt - currentAlt) < 100){
-        size = 6;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
-      }
-    }
-
+    // 点（補助）
     ctx.beginPath();
-    ctx.arc(x,y,size,0,Math.PI2);
+    ctx.arc(x,y,4,0,Math.PI2);
     ctx.fillStyle=color;
+    ctx.globalAlpha = 0.7;
     ctx.fill();
-
-    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
   }
 }
 
