@@ -3,181 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WindView Clone</title>
-
+<title>Wind Tool</title>
 <style>
-body {
-  margin: 0;
-  background: #000;
-  color: white;
-  font-family: Arial;
-}
-
-header {
-  text-align: center;
-  padding: 8px;
-  background: #111;
-  font-size: 16px;
-}
-
-textarea {
-  width: 100%;
-  height: 120px;
-  background: #111;
-  color: white;
-  border: none;
-  font-size: 14px;
-}
-
-button {
-  width: 100%;
-  padding: 12px;
-  background: #222;
-  color: white;
-  border: none;
-  font-size: 16px;
-}
-
-#history {
-  display: flex;
-  overflow-x: auto;
-  background: #111;
-}
-
-.history-item {
-  padding: 8px;
-  border-right: 1px solid #333;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.active {
-  background: #333;
-}
-
-canvas {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  background: #000;
-}
+body { margin:0; background:#000; color:white; font-family:Arial; }
+textarea { width:100%; height:120px; background:#111; color:white; }
+button { width:100%; padding:10px; background:#222; color:white; border:none; }
+table { width:100%; border-collapse:collapse; }
+td,th { border:1px solid #333; padding:5px; text-align:center; }
+input { width:100%; background:#111; color:white; border:none; text-align:center; }
+canvas { width:100%; aspect-ratio:1; }
 </style>
 </head>
-
 <body>
-
-<header>WindView Clone</header>
-
-<textarea id="input" placeholder="データ貼り付け"></textarea>
-<button onclick="addData()">追加</button>
-
-<div id="history"></div>
-
-<canvas id="canvas"></canvas>
-
+<textarea id="raw" placeholder="貼り付け"></textarea>
+<div id="table"></div>
 <script>
 
-let history = [];
-let currentIndex = 0;
+let currentData = [];
 
-// ===== パース（完全対応版）=====
-function parse(text) {
-  const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+function normalize(){
+  const text = document.getElementById("raw").value;
+  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l);
+
   let result = [];
 
-  for (let i = 0; i < lines.length; i++) {
+  for(let i=0;i<lines.length;i++){
+    if(/m$/.test(lines[i])){
 
-    // 「mで終わる行だけ」処理（ヘッダー完全無視）
-    if (/m$/.test(lines[i])) {
-
-      let altLine = lines[i];
-
-      let dir = parseFloat(lines[i + 1]);
-      let speed = parseFloat(lines[i + 2]);
-
-      if (isNaN(dir) || isNaN(speed)) continue;
-
+      let nums = lines[i].match(/\d+/g);
       let alt;
 
-      // 0-100m形式
-      if (altLine.includes("-")) {
-        const nums = altLine.match(/\d+/g);
-        if (nums && nums.length === 2) {
-          alt = (parseFloat(nums[0]) + parseFloat(nums[1])) / 2;
-        } else {
-          continue;
-        }
-      } 
-      // - 1000m形式
-      else {
-        const num = altLine.match(/\d+/);
-        if (!num) continue;
-        alt = parseFloat(num[0]);
+      if(nums.length==2){
+        alt = (parseFloat(nums[0])+parseFloat(nums[1]))/2;
+      }else{
+        alt = parseFloat(nums[0]);
       }
 
-      result.push({
-        alt,
-        dir,
-        speed,
-        heading: (dir + 180) % 360
-      });
+      let dir = parseFloat(lines[i+1]);
+      let spd = parseFloat(lines[i+2]);
+
+      if(isNaN(dir)||isNaN(spd)) continue;
+
+      result.push({alt,dir,spd});
     }
   }
 
-  return result.sort((a, b) => a.alt - b.alt);
+  currentData = result;
+
+  renderTable();
 }
 
-// ===== データ追加 =====
-function addData() {
-  const text = document.getElementById("input").value;
-  if (!text) return;
+function renderTable(){
+  let html = "<table><tr><th>高度</th><th>風向</th><th>風速</th></tr>";
 
-  const layers = parse(text);
-
-  if (layers.length === 0) {
-    alert("データが正しく読み取れません");
-    return;
-  }
-
-  history.push({
-    time: new Date().toLocaleTimeString(),
-    layers
+  currentData.forEach((d,i)=>{
+    html+=`
+    <tr>
+      <td><input value="${d.alt}" onchange="edit(${i},'alt',this.value)"></td>
+      <td><input value="${d.dir}" onchange="edit(${i},'dir',this.value)"></td>
+      <td><input value="${d.spd}" onchange="edit(${i},'spd',this.value)"></td>
+    </tr>`;
   });
 
-  currentIndex = history.length - 1;
-
-  renderHistory();
-  draw();
+  html+="</table>";
+  document.getElementById("table").innerHTML = html;
 }
 
-// ===== 履歴UI =====
-function renderHistory() {
-  const el = document.getElementById("history");
-  el.innerHTML = "";
-
-  history.forEach((h, i) => {
-    const div = document.createElement("div");
-    div.className = "history-item " + (i===currentIndex?"active":"");
-    div.innerText = h.time;
-    div.onclick = ()=>{
-      currentIndex = i;
-      renderHistory();
-      draw();
-    };
-    el.appendChild(div);
-  });
+function edit(i,key,val){
+  currentData[i][key] = parseFloat(val);
 }
 
-// ===== 風速カラー =====
-function getColor(speed) {
-  if (speed < 5) return "#00aaff";
-  if (speed < 10) return "#00ff88";
-  if (speed < 15) return "#ffee00";
-  if (speed < 20) return "#ff8800";
+function apply(){
+  draw(currentData);
+}
+
+function getColor(s){
+  if(s<5) return "#00aaff";
+  if(s<10) return "#00ff88";
+  if(s<15) return "#ffee00";
+  if(s<20) return "#ff8800";
   return "#ff0000";
 }
 
-// ===== 描画 =====
-function draw() {
+function draw(data){
+
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
 
@@ -188,64 +97,36 @@ function draw() {
 
   const cx = canvas.width/2;
   const cy = canvas.height/2;
+  const scale = 6;
 
-  // グリッド
   for(let r=40;r<=200;r+=40){
     ctx.beginPath();
-    ctx.arc(cx,cy,r,0,Math.PI2);
+    ctx.arc(cx,cy,r,0,Math.PI*2);
     ctx.strokeStyle="#333";
     ctx.stroke();
   }
 
-  // 方位
-  ctx.fillStyle="#777";
-  ctx.font = "12px Arial";
-  ctx.fillText("N", cx-5, 12);
-  ctx.fillText("E", canvas.width-15, cy);
-  ctx.fillText("S", cx-5, canvas.height-5);
-  ctx.fillText("W", 5, cy);
+  data.sort((a,b)=>a.alt-b.alt);
 
-  const current = history[currentIndex];
-  const prev = history[currentIndex-1];
+  for(let i=0;i<data.length;i++){
 
-  if(prev){
-    drawPolar(ctx, prev.layers, cx, cy, true);
-  }
+    const d = data[i];
 
-  if(current){
-    drawPolar(ctx, current.layers, cx, cy, false);
-  }
-}
+    const angle = (d.dir+180)*Math.PI/180;
+    const r = d.spd*scale;
 
-// ===== 極座標描画 =====
-function drawPolar(ctx, layers, cx, cy, isPrev){
+    const x = cx + Math.cos(angle)*r;
+    const y = cy + Math.sin(angle)*r;
 
-  const scale = 6;
+    let color = getColor(d.spd);
 
-  for(let i=0;i<layers.length;i++){
-
-    const d = layers[i];
-
-    const angle = d.headingMath.PI/180;
-    const r = d.speed*scale;
-
-    const x = cx + Math.cos(angle)r;
-    const y = cy + Math.sin(angle)r;
-
-    let color = getColor(d.speed);
-
-    if(isPrev){
-      color = "rgba(150,150,150,0.2)";
-    }
-
-    // 線（主役）
     if(i>0){
-      const prev = layers[i-1];
-      const a2 = prev.headingMath.PI/180;
-      const r2 = prev.speedscale;
+      const p = data[i-1];
+      const a2 = (p.dir+180)*Math.PI/180;
+      const r2 = p.spd*scale;
 
       const x2 = cx + Math.cos(a2)*r2;
-      const y2 = cy + Math.sin(a2)r2;
+      const y2 = cy + Math.sin(a2)*r2;
 
       ctx.beginPath();
       ctx.moveTo(x2,y2);
@@ -255,17 +136,14 @@ function drawPolar(ctx, layers, cx, cy, isPrev){
       ctx.stroke();
     }
 
-    // 点（補助）
     ctx.beginPath();
-    ctx.arc(x,y,4,0,Math.PI2);
+    ctx.arc(x,y,4,0,Math.PI*2);
     ctx.fillStyle=color;
-    ctx.globalAlpha = 0.7;
     ctx.fill();
-    ctx.globalAlpha = 1;
   }
 }
 
 </script>
-
 </body>
 </html>
+:::
