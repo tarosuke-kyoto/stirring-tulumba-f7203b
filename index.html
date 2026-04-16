@@ -3,61 +3,136 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wind Tool</title>
+<title>WindView Tool</title>
 <style>
-body { margin:0; background:#000; color:white; font-family:Arial; }
-textarea { width:100%; height:120px; background:#111; color:white; }
-button { width:100%; padding:10px; background:#222; color:white; border:none; }
-table { width:100%; border-collapse:collapse; }
-td,th { border:1px solid #333; padding:5px; text-align:center; }
-input { width:100%; background:#111; color:white; border:none; text-align:center; }
-canvas { width:100%; aspect-ratio:1; }
+body {
+  margin: 0;
+  background: #000;
+  color: white;
+  font-family: Arial;
+}
+
+header {
+  text-align: center;
+  padding: 10px;
+  background: #111;
+}
+
+textarea {
+  width: 100%;
+  height: 140px;
+  background: #111;
+  color: white;
+  border: none;
+  font-size: 14px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  background: #222;
+  color: white;
+  border: none;
+  font-size: 16px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td, th {
+  border: 1px solid #333;
+  padding: 6px;
+  text-align: center;
+}
+
+input {
+  width: 100%;
+  background: #111;
+  color: white;
+  border: none;
+  text-align: center;
+}
+
+canvas {
+  width: 100%;
+  aspect-ratio: 1;
+}
 </style>
 </head>
 <body>
-<textarea id="raw" placeholder="貼り付け"></textarea>
+<header>WindView Tool</header>
+<textarea id="raw" placeholder="ここにそのまま貼る"></textarea>
 <div id="table"></div>
 <script>
 
 let currentData = [];
 
+// ===== 整形 =====
 function normalize(){
+
   const text = document.getElementById("raw").value;
-  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l);
+
+  if(!text){
+    alert("入力が空");
+    return;
+  }
+
+  const lines = text
+    .replace(/\r/g, "")
+    .split("\n")
+    .map(l => l.trim())
+    .filter(l => l);
 
   let result = [];
 
   for(let i=0;i<lines.length;i++){
+
     if(/m$/.test(lines[i])){
 
-      let nums = lines[i].match(/\d+/g);
-      let alt;
-
-      if(nums.length==2){
-        alt = (parseFloat(nums[0])+parseFloat(nums[1]))/2;
-      }else{
-        alt = parseFloat(nums[0]);
-      }
+      let altLine = lines[i];
 
       let dir = parseFloat(lines[i+1]);
       let spd = parseFloat(lines[i+2]);
 
-      if(isNaN(dir)||isNaN(spd)) continue;
+      if(isNaN(dir) || isNaN(spd)) continue;
 
-      result.push({alt,dir,spd});
+      let alt;
+
+      if(altLine.includes("-")){
+        const nums = altLine.match(/\d+/g);
+        if(nums && nums.length === 2){
+          alt = (parseFloat(nums[0]) + parseFloat(nums[1])) / 2;
+        } else {
+          continue;
+        }
+      } else {
+        const num = altLine.match(/\d+/);
+        if(!num) continue;
+        alt = parseFloat(num[0]);
+      }
+
+      result.push({ alt, dir, spd });
     }
   }
 
-  currentData = result;
+  if(result.length === 0){
+    alert("読み取れなかった（改行確認）");
+    return;
+  }
 
+  currentData = result;
   renderTable();
 }
 
+// ===== テーブル =====
 function renderTable(){
+
   let html = "<table><tr><th>高度</th><th>風向</th><th>風速</th></tr>";
 
   currentData.forEach((d,i)=>{
-    html+=`
+    html += `
     <tr>
       <td><input value="${d.alt}" onchange="edit(${i},'alt',this.value)"></td>
       <td><input value="${d.dir}" onchange="edit(${i},'dir',this.value)"></td>
@@ -65,23 +140,26 @@ function renderTable(){
     </tr>`;
   });
 
-  html+="</table>";
+  html += "</table>";
+
   document.getElementById("table").innerHTML = html;
 }
 
+// ===== 編集 =====
 function edit(i,key,val){
   currentData[i][key] = parseFloat(val);
 }
 
+// ===== 描画 =====
 function apply(){
   draw(currentData);
 }
 
 function getColor(s){
-  if(s<5) return "#00aaff";
-  if(s<10) return "#00ff88";
-  if(s<15) return "#ffee00";
-  if(s<20) return "#ff8800";
+  if(s < 5) return "#00aaff";
+  if(s < 10) return "#00ff88";
+  if(s < 15) return "#ffee00";
+  if(s < 20) return "#ff8800";
   return "#ff0000";
 }
 
@@ -99,6 +177,7 @@ function draw(data){
   const cy = canvas.height/2;
   const scale = 6;
 
+  // グリッド
   for(let r=40;r<=200;r+=40){
     ctx.beginPath();
     ctx.arc(cx,cy,r,0,Math.PI*2);
@@ -106,24 +185,32 @@ function draw(data){
     ctx.stroke();
   }
 
+  // 方位
+  ctx.fillStyle="#777";
+  ctx.font = "12px Arial";
+  ctx.fillText("N", cx-5, 12);
+  ctx.fillText("E", canvas.width-15, cy);
+  ctx.fillText("S", cx-5, canvas.height-5);
+  ctx.fillText("W", 5, cy);
+
   data.sort((a,b)=>a.alt-b.alt);
 
   for(let i=0;i<data.length;i++){
 
     const d = data[i];
 
-    const angle = (d.dir+180)*Math.PI/180;
-    const r = d.spd*scale;
+    const angle = (d.dir + 180) * Math.PI / 180;
+    const r = d.spd * scale;
 
     const x = cx + Math.cos(angle)*r;
     const y = cy + Math.sin(angle)*r;
 
-    let color = getColor(d.spd);
+    const color = getColor(d.spd);
 
     if(i>0){
       const p = data[i-1];
-      const a2 = (p.dir+180)*Math.PI/180;
-      const r2 = p.spd*scale;
+      const a2 = (p.dir + 180) * Math.PI / 180;
+      const r2 = p.spd * scale;
 
       const x2 = cx + Math.cos(a2)*r2;
       const y2 = cy + Math.sin(a2)*r2;
