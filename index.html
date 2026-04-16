@@ -1,0 +1,196 @@
+	<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wind Viewer Mobile</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #111;
+  color: white;
+}
+
+header {
+  padding: 10px;
+  text-align: center;
+  background: #222;
+  font-size: 18px;
+}
+
+textarea {
+  width: 100%;
+  height: 120px;
+  font-size: 14px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 5px;
+  font-size: 16px;
+}
+
+#history {
+  display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid #333;
+}
+
+.history-item {
+  padding: 10px;
+  border-right: 1px solid #333;
+  cursor: pointer;
+}
+
+.active {
+  background: #444;
+}
+
+canvas {
+  width: 100%;
+  height: 400px;
+  background: black;
+}
+</style>
+</head>
+
+<body>
+
+<header>Wind Viewer</header>
+
+<textarea id="input" placeholder="ここに貼り付け"></textarea>
+<button onclick="addData()">追加</button>
+
+<div id="history"></div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+
+let history = [];
+let currentIndex = 0;
+let compareMode = false;
+
+function parse(text) {
+  const lines = text.split("\n").map(l => l.trim()).filter(l => l);
+
+  let result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+
+    if (lines[i].includes("m")) {
+
+      let altLine = lines[i];
+      let dir = parseFloat(lines[i+1]);
+      let speed = parseFloat(lines[i+2]);
+
+      let min, max;
+
+      if (altLine.includes("-")) {
+        let parts = altLine.replace("m","").split("-");
+        min = parseFloat(parts[0]);
+        max = parseFloat(parts[1]);
+      } else {
+        let val = parseFloat(altLine.replace("m","").replace("-",""));
+        min = val - 100;
+        max = val;
+      }
+
+      let alt = (min + max) / 2;
+
+      result.push({
+        alt,
+        dir,
+        speed,
+        heading: (dir + 180) % 360
+      });
+    }
+  }
+
+  return result;
+}
+
+function addData() {
+  const text = document.getElementById("input").value;
+
+  if (!text) return;
+
+  const time = new Date().toLocaleTimeString();
+
+  const layers = parse(text);
+
+  history.push({ time, layers });
+
+  currentIndex = history.length - 1;
+
+  renderHistory();
+  draw();
+}
+
+function renderHistory() {
+  const el = document.getElementById("history");
+  el.innerHTML = "";
+
+  history.forEach((h, i) => {
+    const div = document.createElement("div");
+    div.className = "history-item " + (i === currentIndex ? "active" : "");
+    div.innerText = h.time;
+    div.onclick = () => {
+      currentIndex = i;
+      draw();
+      renderHistory();
+    };
+    el.appendChild(div);
+  });
+}
+
+function draw() {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  canvas.width = canvas.clientWidth;
+  canvas.height = 400;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const centerX = canvas.width / 2;
+
+  const current = history[currentIndex];
+  const prev = history[currentIndex - 1];
+
+  current.layers.forEach((d, i) => {
+
+    const y = canvas.height - (i * 25) - 20;
+
+    drawArrow(ctx, centerX, y, d.heading, d.speed, "white");
+
+    if (prev && prev.layers[i]) {
+      drawArrow(ctx, centerX, y, prev.layers[i].heading, prev.layers[i].speed, "gray");
+    }
+
+    ctx.fillStyle = "white";
+    ctx.fillText(d.alt + "m", 5, y);
+  });
+}
+
+function drawArrow(ctx, x, y, dir, speed, color) {
+  const angle = dir * Math.PI / 180;
+  const length = speed * 4;
+
+  const x2 = x + Math.cos(angle) * length;
+  const y2 = y + Math.sin(angle) * length;
+
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
+
+</script>
+
+</body>
+</html>
