@@ -1,9 +1,9 @@
-	<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wind Viewer Mobile</title>
+<title>Wind Polar Viewer</title>
 
 <style>
 body {
@@ -14,8 +14,8 @@ body {
 }
 
 header {
-  padding: 10px;
   text-align: center;
+  padding: 10px;
   background: #222;
   font-size: 18px;
 }
@@ -23,14 +23,14 @@ header {
 textarea {
   width: 100%;
   height: 120px;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 button {
   width: 100%;
-  padding: 12px;
+  padding: 14px;
+  font-size: 18px;
   margin-top: 5px;
-  font-size: 16px;
 }
 
 #history {
@@ -43,6 +43,7 @@ button {
   padding: 10px;
   border-right: 1px solid #333;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .active {
@@ -51,7 +52,7 @@ button {
 
 canvas {
   width: 100%;
-  height: 400px;
+  aspect-ratio: 1 / 1;
   background: black;
 }
 </style>
@@ -59,9 +60,9 @@ canvas {
 
 <body>
 
-<header>Wind Viewer</header>
+<header>Wind Polar Viewer</header>
 
-<textarea id="input" placeholder="ここに貼り付け"></textarea>
+<textarea id="input" placeholder="そのまま貼り付け"></textarea>
 <button onclick="addData()">追加</button>
 
 <div id="history"></div>
@@ -72,7 +73,6 @@ canvas {
 
 let history = [];
 let currentIndex = 0;
-let compareMode = false;
 
 function parse(text) {
   const lines = text.split("\n").map(l => l.trim()).filter(l => l);
@@ -115,7 +115,6 @@ function parse(text) {
 
 function addData() {
   const text = document.getElementById("input").value;
-
   if (!text) return;
 
   const time = new Date().toLocaleTimeString();
@@ -123,7 +122,6 @@ function addData() {
   const layers = parse(text);
 
   history.push({ time, layers });
-
   currentIndex = history.length - 1;
 
   renderHistory();
@@ -152,42 +150,81 @@ function draw() {
   const ctx = canvas.getContext("2d");
 
   canvas.width = canvas.clientWidth;
-  canvas.height = 400;
+  canvas.height = canvas.clientWidth;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const centerX = canvas.width / 2;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  // 円ガイド
+  for (let r = 40; r <= 160; r += 40) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#333";
+    ctx.stroke();
+  }
+
+  // 十字線
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, canvas.height);
+  ctx.moveTo(0, cy);
+  ctx.lineTo(canvas.width, cy);
+  ctx.strokeStyle = "#555";
+  ctx.stroke();
 
   const current = history[currentIndex];
   const prev = history[currentIndex - 1];
 
-  current.layers.forEach((d, i) => {
+  if (prev) {
+    drawPolar(ctx, prev.layers, cx, cy, "gray");
+  }
 
-    const y = canvas.height - (i * 25) - 20;
-
-    drawArrow(ctx, centerX, y, d.heading, d.speed, "white");
-
-    if (prev && prev.layers[i]) {
-      drawArrow(ctx, centerX, y, prev.layers[i].heading, prev.layers[i].speed, "gray");
-    }
-
-    ctx.fillStyle = "white";
-    ctx.fillText(d.alt + "m", 5, y);
-  });
+  if (current) {
+    drawPolar(ctx, current.layers, cx, cy, "white");
+  }
 }
 
-function drawArrow(ctx, x, y, dir, speed, color) {
-  const angle = dir * Math.PI / 180;
-  const length = speed * 4;
+function drawPolar(ctx, layers, cx, cy, color) {
 
-  const x2 = x + Math.cos(angle) * length;
-  const y2 = y + Math.sin(angle) * length;
+  const scale = 6;
 
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x2, y2);
+
+  layers.forEach((d, i) => {
+
+    const angle = d.heading * Math.PI / 180;
+    const r = d.speed * scale;
+
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+
   ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
   ctx.stroke();
+
+  // 点＋ラベル
+  layers.forEach((d) => {
+    const angle = d.heading * Math.PI / 180;
+    const r = d.speed * scale;
+
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    ctx.fillStyle = "#aaa";
+    ctx.font = "10px Arial";
+    ctx.fillText(d.alt + "m", x + 4, y);
+  });
 }
 
 </script>
