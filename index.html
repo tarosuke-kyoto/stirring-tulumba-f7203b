@@ -2,27 +2,124 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WindView Tool</title>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WindView</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<header>WindView Tool</header>
+<!-- ヘッダー -->
+<header id="appHeader">
+  <div class="header-left">
+    <span class="app-name">WindView</span>
+    <span class="header-date" id="headerDate">--/--</span>
+    <span class="status-badge" id="statusBadge">停止中</span>
+  </div>
+  <button class="menu-btn" id="menuBtn" onclick="openMenu()">
+    <span></span><span></span><span></span>
+  </button>
+</header>
 
-<textarea id="raw" placeholder="ここに貼る"></textarea>
+<!-- 時刻タブ -->
+<div class="time-tabs-wrap">
+  <div class="time-tabs" id="timeTabs"></div>
+  <button class="add-btn" id="addBtn" onclick="openAddModal()">＋</button>
+</div>
 
-<button id="normalizeBtn">整形</button>
+<!-- メイン -->
+<main id="mainArea">
+  <!-- ホドグラフエリア -->
+  <div class="chart-wrap">
+    <div class="chart-meta">
+      <div class="chart-meta-left">
+        <div class="update-time" id="updateTime">更新 --:--</div>
+        <div class="map-link">🗺 <span>Map</span></div>
+      </div>
+      <button class="fromto-btn" id="fromtoBtn" onclick="toggleFromTo()">From</button>
+    </div>
+    <div class="canvas-outer">
+      <canvas id="hodCanvas"></canvas>
+      <div class="zoom-ctrl">
+        <span id="zoomLabel">×1.0</span>
+        <button onclick="zoomIn()">🔍</button>
+      </div>
+    </div>
+  </div>
 
-<div id="table"></div>
+  <!-- チャートタブ切り替え -->
+  <div class="sub-tab-bar">
+    <button class="sub-tab active" id="tabDst" onclick="switchSubTab('dst')">DstChart</button>
+    <button class="sub-tab" id="tabSpd" onclick="switchSubTab('spd')">SpdChart</button>
+  </div>
 
-<button id="applyBtn">グラフ表示</button>
+  <!-- テーブル -->
+  <div class="table-outer" id="tableOuter">
+    <div class="table-scroll" id="tableScroll"></div>
+  </div>
+</main>
 
-<canvas id="canvas"></canvas>
+<!-- データ入力モーダル -->
+<div class="modal-overlay" id="addModal" onclick="closeAddModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">データ追加</div>
+    <textarea id="pasteArea" placeholder="time:\n3:28\nAltitude\ndegree\nkt\n0-100m\n43.9\n1.2\n..."></textarea>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeAddModal()">キャンセル</button>
+      <button class="btn-ok" onclick="addDataset()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 設定モーダル -->
+<div class="modal-overlay" id="settingsModal" onclick="closeSettings(event)">
+  <div class="modal-box settings-box">
+    <div class="modal-title">設定</div>
+    <div class="setting-row">
+      <label>風速単位</label>
+      <select id="setUnit">
+        <option value="ms">m/s</option>
+        <option value="kt">kt</option>
+        <option value="kmh">km/h</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label>地磁気偏差 [°]</label>
+      <input type="number" id="setDeclination" value="7" step="0.1">
+    </div>
+    <div class="setting-row">
+      <label>標高 [m]</label>
+      <input type="number" id="setElevation" value="0" step="1">
+    </div>
+    <div class="setting-row">
+      <label>同時表示本数</label>
+      <input type="number" id="setMaxSets" value="6" min="1" max="20">
+    </div>
+    <div class="setting-row">
+      <label>ズーム初期値</label>
+      <select id="setZoom">
+        <option value="1">×1.0</option>
+        <option value="2">×2.0</option>
+        <option value="4">×4.0</option>
+      </select>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeSettings()">キャンセル</button>
+      <button class="btn-ok" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- メニューモーダル -->
+<div class="modal-overlay" id="menuModal" onclick="closeMenu(event)">
+  <div class="modal-box menu-box">
+    <div class="menu-item" onclick="openSettings()">⚙ 設定</div>
+    <div class="menu-item danger" onclick="clearAll()">🗑 全データ削除</div>
+    <div class="menu-item" onclick="closeMenu()">✕ 閉じる</div>
+  </div>
+</div>
 
 <script src="app.js"></script>
-
 </body>
 </html>
